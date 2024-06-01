@@ -1,0 +1,14 @@
+{
+  "name": "just-project",
+  "version": "1.0.0",
+  "description": "for music purpose only",
+  "main": "music.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ath",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+  <meta charset='UTC-8'>
+  <title> music website </title>
+  <link rel='icon' href='./icon_images/rock_and_roll.png'>
+</head>
+
+<body>
+  <header>
+    <h1>Music streaming platform</h1>
+  </header>
+  <hr>
+  <main>
+    <h2> Hello </h2>
+  
+    <p><abbr title='no bullshit'>nbs</abbr></p>
+  
+    
+    <!-- <p id="song" onclick="idSend(this)">1</p><br>
+    <p id="song" onclick="idSend(this)">2</p><br>
+    <p id="song" onclick="idSend(this)">3</p><br>
+    <p id="song" onclick="idSend(this)">4</p><br>
+    <p id="song" onclick="idSend(this)">5</p><br>
+    <p id="song" onclick="idSend(this)">6</p><br>
+    <p id="song" onclick="idSend(this)">7</p><br>
+    <p id="song" onclick="idSend(this)">8</p><br> -->
+
+    <br><br>
+
+    <!-- <button id="btnShowAllSong" onclick="allSongs()"></button> -->
+    <div id="songContainer"></div>
+
+    <audio id="audio_p" controls>the Friendly Sound</audio>
+    
+    <script src="./script.js"></script>
+  
+  </main>
+  <hr>
+  <footer>
+    &copy;Atharv |
+    <a href='/'>home</a>
+  </footer>
+</body>
+
+</html>
+<!-- <meta name='viewport' content='width=device-width, initial=scale=1.0'> -->
+<!-- <link rel='stylesheet' href='main.css'> -->
+<!-- <link rel='' href=''> -->
+<!-- <nav></nav><aside></aside> -->
+<!-- <p id="pause_btn">
+    Pause
+  </p> -->
+<!-- <p id="next_btn">
+      Next
+  </p>
+  <p id="previous_btn">
+    Previous
+  </p> -->
+<!--<a href='#'>top</a> -->
+<!-- 
+packages
+
+multer          ---for middleware
+Music-metadata  ---for information like artist,title
+speaker         ---for playback and interaction
+node-wav-player ---for playing audio
+Passport        ---for userid and password authentication
+Sequelize       ---for relational database connection
+jest            ---for testing
+-->
+<!-- 
+
+### 1. Update the Project Structure
+First, let's update our project structure to include a `music` directory where we'll store our music files.
+
+```
+simple-music-player/
+│
+├── public/
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+│
+├── music/
+│   └── your_song.mp3
+│
+└── server.js
+
+
+
+### 3. Update `public/index.html`
+We'll modify the HTML to include buttons for playing and pausing the music.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Music Player</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Simple Music Player</h1>
+    <audio id="audio" controls>
+      <source src="music/your_song.mp3" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <div class="controls">
+      <p id="playPauseBtn">Play</p>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
+``` -->
+<!-- 
+
+```javascript
+// JavaScript to control the music player
+
+const audio = document.getElementById('audio');
+const playPauseBtn = document.getElementById('playPauseBtn');
+
+// Function to play or pause the music
+function togglePlay() {
+  if (audio.paused) {
+    audio.play();
+    playPauseBtn.textContent = 'Pause';
+  } else {
+    audio.pause();
+    playPauseBtn.textContent = 'Play';
+  }
+}

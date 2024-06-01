@@ -1,0 +1,832 @@
+here is code for music playing website , music is stored on website , project in of someone else i need to under stand how music played and how route is world and how music is send and how it is received in responce and want only and all information and how is song is requested and and then request handled on server  then how it respond and how the song is received on client side and played and whatere it is played, in code:
+
+
+//file_system_manager.js
+
+const fs = require("fs");
+
+class FileSystemManager {
+  async writeToJsonFile (path, data) {
+    return await fs.promises.writeFile(path, data);
+  }
+
+  async readFile (path) {
+    return await fs.promises.readFile(path);
+  }
+}
+
+module.exports = { FileSystemManager };
+
+//songs_manager.js
+
+const { FileSystemManager } = require("./file_system_manager");
+const path = require("path");
+
+class SongsManager {
+  constructor () {
+    this.JSON_PATH = path.join(__dirname + "../../data/songs.json");
+    this.fileSystemManager = new FileSystemManager();
+  }
+
+  async getAllSongs () {
+    const fileBuffer = await this.fileSystemManager.readFile(this.JSON_PATH);
+    return JSON.parse(fileBuffer).songs;
+  }
+
+  async getSongById (id) {
+    const allSongs = await this.getAllSongs();
+    const song = allSongs.find((item) => item.id === id);
+    return song;
+  }
+
+  async updateSongLike (id) {
+    let songs = await this.getAllSongs();
+    const song = await this.getSongById(id);
+    if (song === undefined) {
+      return;
+    }
+    if (song.liked) {
+      song.liked = false;
+    } else {
+      song.liked = true;
+    }
+    const newSongs = songs.filter((item) => item.id !== id);
+    newSongs.push(song);
+    songs = newSongs;
+    await this.fileSystemManager.writeToJsonFile(this.JSON_PATH, JSON.stringify({ songs }));
+    return song.liked;
+  }
+}
+
+module.exports = { SongsManager };
+
+
+//playlists.js
+
+const { HTTP_STATUS } = require("../utils/http");
+const router = require("express").Router();
+const { PlaylistManager } = require("../managers/playlist_manager");
+
+const playlistManager = new PlaylistManager();
+
+router.get("/", async (request, response) => {
+  try {
+    const playlists = await playlistManager.getAllPlaylists();
+    response.status(HTTP_STATUS.SUCCESS).json(playlists);
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.get("/:id", async (request, response) => {
+  try {
+    const playlist = await playlistManager.getPlaylistById(request.params.id);
+    if (playlist) {
+      response.status(HTTP_STATUS.SUCCESS).json(playlist);
+    } else {
+      response.status(HTTP_STATUS.NOT_FOUND).send();
+    }
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.post("/", async (request, response) => {
+  try {
+    if (!Object.keys(request.body).length) {
+      response.status(HTTP_STATUS.BAD_REQUEST).send();
+      return;
+    }
+    const playlist = await playlistManager.addPlaylist(request.body);
+    response.status(HTTP_STATUS.CREATED).json(playlist);
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.put("/:id", async (request, response) => {
+  try {
+    if (!Object.keys(request.body).length) {
+      response.status(HTTP_STATUS.BAD_REQUEST).send();
+      return;
+    }
+    await playlistManager.updatePlaylist(request.body);
+    response.status(HTTP_STATUS.SUCCESS).json({ "id": request.params.id });
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.delete("/:id", async (request, response) => {
+  try {
+    if (await playlistManager.deletePlaylist(request.params.id)) {
+      response.status(HTTP_STATUS.SUCCESS).send();
+    } else {
+      response.status(HTTP_STATUS.NOT_FOUND).send();
+    }
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+module.exports = { router, playlistManager };
+
+
+//songs.js
+
+const { HTTP_STATUS } = require("../utils/http");
+const router = require("express").Router();
+const { SongsManager } = require("../managers/songs_manager");
+const fs = require("fs");
+const path = require("path");
+const songsManager = new SongsManager();
+
+router.get("/", async (request, response) => {
+  try {
+    const songs = await songsManager.getAllSongs();
+    response.status(HTTP_STATUS.SUCCESS).json(songs);
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.get("/:id", async (request, response) => {
+  try {
+    const song = await songsManager.getSongById(parseInt(request.params.id));
+    if (song) {
+      response.status(HTTP_STATUS.SUCCESS).json(song);
+    } else {
+      response.status(HTTP_STATUS.NOT_FOUND).json(song);
+    }
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.get("/player/:id", async (request, response) => {
+  try {
+    const song = await songsManager.getSongById(parseInt(request.params.id));
+    const filePath = path.join(__dirname + "../../" + song.src);
+    const stat = await fs.promises.stat(filePath);
+    const fileSize = stat.size;
+    const readStream = fs.createReadStream(path.join(__dirname + "../../" + song.src));
+    const headers = {
+      "Content-Type": ":audio/mpeg",
+      "Content-Length": fileSize,
+    };
+    response.status(HTTP_STATUS.SUCCESS);
+    response.set(headers);
+    readStream.pipe(response);
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json(error);
+  }
+});
+
+router.patch("/:id/like", async (request, response) => {
+  try {
+    const like = songsManager.updateSongLike(request.params.id);
+    response.status(HTTP_STATUS.SUCCESS).json({ "liked": like });
+  } catch (error) {
+    response.status(HTTP_STATUS.SERVER_ERROR).json({ liked: false });
+  }
+});
+
+module.exports = { router, songsManager };
+
+//http.js
+
+
+const HTTP_STATUS =
+{
+  SUCCESS: 200,
+  CREATED: 201,
+  NO_CONTENT: 204,
+  REDIRECT: 302,
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  SERVER_ERROR: 500
+};
+
+module.exports = {
+  HTTP_STATUS
+};
+
+
+
+//server.js
+
+const path = require("path");
+const express = require("express");
+const playlistsRouter = require("./routes/playlists");
+const cors = require("cors");
+
+const app = express();
+const PORT = 5020;
+const SIZE_LIMIT = "10mb";
+const PUBLIC_PATH = path.join(__dirname);
+
+app.use(cors({ origin: '*' }));
+
+app.use((request, response, next) => {
+  console.log(`New HTTP request: ${request.method} ${request.url}`);
+  next();
+});
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: SIZE_LIMIT }));
+app.use(express.static(PUBLIC_PATH));
+
+const songsRouter = require("./routes/songs");
+const searchRouter = require("./routes/search_bar");
+
+app.use("/api/playlists", playlistsRouter.router);
+app.use("/api/songs", songsRouter.router);
+app.use("/api/search", searchRouter.router);
+
+const server = app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
+
+module.exports = server;
+
+
+
+//consts.js
+
+export const SKIP_TIME = 5;
+export const AUDIO_ADJUST = 0.1;
+
+export const SHORTCUTS = {
+  NEXT_SONG: "n",
+  PREVIOUS_SONG: "p",
+  VOLUME_UP: "ArrowUp",
+  VOLUME_DOWN: "ArrowDown",
+  PLAY_PAUSE: " ",
+  GO_FORWARD: "l",
+  GO_BACK: "j",
+  MUTE: "m"
+};
+
+export const SERVER_URL = "http://localhost:5020";
+
+
+
+//http_manager.js
+
+import { SERVER_URL } from "./consts.js";
+
+export const HTTPInterface = {
+  SERVER_URL: `${SERVER_URL}/api`,
+
+  GET: async function (endpoint) {
+    const response = await fetch(`${this.SERVER_URL}/${endpoint}`);
+    return await response.json();
+  },
+
+  POST: async function (endpoint, data) {
+    const response = await fetch(`${this.SERVER_URL}/${endpoint}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "content-type": "application/json",
+      },
+    });
+
+    return await response.json();
+  },
+
+  DELETE: async function (endpoint) {
+    const response = await fetch(`${this.SERVER_URL}/${endpoint}`, {
+      method: "DELETE",
+    });
+    return response.status;
+  },
+
+  PATCH: async function (endpoint) {
+    const response = await fetch(`${this.SERVER_URL}/${endpoint}`, {
+      method: "PATCH",
+    });
+    return response.status;
+  },
+
+  PUT: async function (endpoint, data) {
+    const response = await fetch(`${this.SERVER_URL}/${endpoint}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: {
+        "content-type": "application/json",
+      },
+    });
+    return response.status;
+  },
+};
+
+export default class HTTPManager {
+  constructor () {
+    this.songs = {};
+    this.playlists = {};
+    this.songsBaseURL = "songs";
+    this.songFileBaseURL = "player";
+    this.playlistBaseURL = "playlists";
+    this.songPlayer = "player";
+    this.searchBaseURL = "search";
+  }
+
+  async fetchAllSongs () {
+    const songs = await HTTPInterface.GET(this.songsBaseURL);
+    return songs;
+  }
+
+  async fetchAllPlaylists () {
+    const playlists = await HTTPInterface.GET(this.playlistBaseURL);
+    return playlists;
+  }
+
+  async fetchSong (id) {
+    const song = await HTTPInterface.GET(`${this.songsBaseURL}/${id}`);
+    return song;
+  }
+
+
+  async getSongURLFromId (id) {
+    const songBlob = await fetch(`${HTTPInterface.SERVER_URL}/${this.songsBaseURL}/${this.songFileBaseURL}/${id}`);
+    const url = URL.createObjectURL(await songBlob.blob());
+    return url;
+  }
+
+  async search (query, exact) {
+    const searchResults = await HTTPInterface.GET(`${this.searchBaseURL}?search_query=${query}&exact=${exact}`);
+    return searchResults;
+  }
+
+  async getAllSongs () {
+    const songsPromises = new Promise((resolve, reject) => {
+      try {
+        const songs = this.fetchAllSongs();
+        resolve(songs);
+      } catch (err) {
+        reject("Échec lors de la requête GET /api/songs");
+      }
+    });
+
+    const songsReceived = Promise.resolve(songsPromises);
+    return songsReceived;
+  }
+
+  async getAllPlaylists () {
+    const playlistsPromises = new Promise((resolve, reject) => {
+      try {
+        const playlists = this.fetchAllPlaylists();
+        resolve(playlists);
+      } catch (err) {
+        reject("Échec lors de la requête GET /api/playlists");
+      }
+    });
+
+    const playlistsReceived = Promise.resolve(playlistsPromises);
+    return playlistsReceived;
+  }
+
+  async getPlaylistById (id) {
+    try {
+      const playlist = await HTTPInterface.GET(`${this.playlistBaseURL}/${id}`);
+      return playlist;
+    } catch (err) {
+      window.alert(err);
+    }
+  }
+
+  async addNewPlaylist (playlist) {
+    try {
+      await Promise.resolve(await HTTPInterface.POST(`${this.playlistBaseURL}`, playlist));
+    } catch (err) {
+      window.alert("An error has occured while adding a new playlist", err);
+    }
+  }
+
+  async updatePlaylist (playlist) {
+    try {
+      await Promise.resolve(await HTTPInterface.PUT(`${this.playlistBaseURL}/${playlist.id}`, playlist));
+    } catch (err) {
+      window.alert("An error has occured while adding a new playlist", err);
+    }
+  }
+
+  async deletePlaylist (id) {
+    try {
+      await Promise.resolve(await HTTPInterface.DELETE(`${this.playlistBaseURL}/${id}`));
+    } catch (err) {
+      window.alert("An error has occured while deleting a playlist", err);
+    }
+  }
+
+  async updateSong (id) {
+    try {
+      await HTTPInterface.PATCH(`${this.songsBaseURL}/${id}/like`);
+    } catch (err) {
+      window.alert("An error has occured while trying to change a song status", err);
+    }
+  }
+}
+
+//player.js
+
+import HTTPManager from "./http_manager.js";
+import { modulo, random } from "./utils.js";
+export default class Player {
+  constructor () {
+    this.audio = new Audio();
+    this.httpManager = new HTTPManager();
+    this.currentIndex = 0;
+    this.songsInPlayList = [];
+    this.shuffle = false;
+  }
+  async loadSongs (songsInPlayList) {
+    this.songsInPlayList = songsInPlayList;
+    const url = await this.httpManager.getSongURLFromId(this.songsInPlayList[0].id);
+    this.audio.src = url;
+  }
+  getSongFromIndex (index) {
+    if (index >= 0 && index < this.songsInPlayList.length) {
+      this.currentIndex = index;
+    }
+    return this.songsInPlayList[this.currentIndex];
+  }
+  async playAudio (index = -1) {
+    if (index === -1) {
+      this.audio.paused ? this.audio.play() : this.audio.pause();
+      return;
+    }
+    const song = this.getSongFromIndex(index);
+    this.audio.load();
+    const url = await this.httpManager.getSongURLFromId(song.id);
+    this.audio.src = url;
+    this.audio.play();
+  }
+  playPreviousSong () {
+    this.currentIndex = this.shuffle
+      ? random(0, this.songsInPlayList.length)
+      : modulo(this.currentIndex - 1, this.songsInPlayList.length);
+    this.playAudio(this.currentIndex);
+  }
+  playNextSong () {
+    this.currentIndex = this.shuffle
+      ? random(0, this.songsInPlayList.length)
+      : modulo(this.currentIndex + 1, this.songsInPlayList.length);
+    this.playAudio(this.currentIndex);
+  }
+  audioSeek (timelineValue) {
+    const time = (timelineValue * this.audio.duration) / 100;
+    this.audio.currentTime = time;
+  }
+  muteToggle () {
+    const isMuted = this.audio.volume === 0;
+    this.audio.volume = isMuted ? 1 : 0;
+    return isMuted;
+  }
+  shuffleToggle () {
+    this.shuffle = !this.shuffle;
+    return this.shuffle;
+  }
+  scrubTime (delta) {
+    const newTime = this.audio.currentTime + delta;
+    this.audio.currentTime = newTime;
+  }
+  get currentSong () {
+    return this.songsInPlayList[this.currentIndex];
+  }
+}
+
+//playlist_editor.js
+
+import HTTPManager from "./http_manager.js";
+import { SERVER_URL } from "./consts.js";
+export default class PlayListEditor {
+  constructor (HTTPManager) {
+    this.HTTPManager = HTTPManager;
+    this.songs = [];
+  }
+  buildDataList (dataList, songs) {
+    dataList.innerHTML = "";
+    songs.forEach((song) => {
+      const option = document.createElement("option");
+      option.value = song.name;
+      dataList.appendChild(option);
+    });
+  }
+  updateImageDisplay () {
+    const imagePreview = document.getElementById("image-preview");
+    imagePreview.src = URL.createObjectURL(this.files[0]);
+  }
+  addItemSelect (e) {
+    e.preventDefault();
+    const songContainer = document.getElementById("song-list");
+    const index = songContainer.children.length + 1;
+    const inputContainer = document.createElement("div");
+    const indexLabel = document.createElement("label");
+    indexLabel.textContent = `#${index} `;
+    indexLabel.setAttribute("for", `song-${index}`);
+    inputContainer.appendChild(indexLabel);
+    const newInput = document.createElement("input");
+    newInput.type = "select";
+    newInput.setAttribute("list", "song-dataList");
+    newInput.setAttribute("id", `song-${index}`);
+    newInput.classList.add("song-input");
+    inputContainer.appendChild(newInput);
+    const removeInputButton = document.createElement("button");
+    removeInputButton.classList = "fa fa-minus";
+    removeInputButton.addEventListener("click", (e) => {
+      e.target.parentNode.remove();
+    });
+    inputContainer.appendChild(removeInputButton);
+    songContainer.appendChild(inputContainer);
+  }
+  async load () {
+    const imageInput = document.getElementById("image");
+    const addSongButton = document.getElementById("add-song-btn");
+    const form = document.getElementById("playlist-form");
+    const songDataList = document.getElementById("song-dataList");
+    const songs = await this.HTTPManager.getAllSongs();
+    const deleteButton = document.getElementById("playlist-delete");
+    this.songs = songs;
+    this.buildDataList(songDataList, songs);
+    imageInput.addEventListener("change", this.updateImageDisplay);
+    addSongButton.addEventListener("click", this.addItemSelect);
+    const urlParams = new URLSearchParams(window.location.search);
+    const playlistId = urlParams.get("id");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.createPlaylist(form, playlistId).catch((e) => {});
+      location.href = "index.html";
+    });
+    if (playlistId) {
+      await this.loadForEdit(playlistId);
+      document.getElementById("playlist-submit").value = "Modifier la playlist";
+      deleteButton.addEventListener("click", () => {
+        this.deletePlaylist(playlistId);
+      });
+    } else {
+      deleteButton.remove();
+    }
+  }
+  async loadForEdit (id) {
+    const playlist = await this.HTTPManager.getPlaylistById(id);
+    document.getElementById("name").value = playlist.name;
+    document.getElementById("description").value = playlist.description;
+    const blob = await (await fetch(`${SERVER_URL}/${playlist.thumbnail}`)).blob();
+    const dataTransfer = new DataTransfer();
+    const file = new File([blob], `${playlist.thumbnail}`, {
+      type: blob.type,
+    });
+    dataTransfer.items.add(file);
+    const fileInput = document.getElementById("image");
+    fileInput.files = dataTransfer.files;
+    fileInput.dispatchEvent(new Event("change"));
+
+    playlist.songs.forEach(async (song, index) => {
+      const newSong = await this.HTTPManager.fetchSong(song.id);
+      if (index > 0) {
+        this.addItemSelect(new Event(""));
+      }
+      document.getElementById(`song-${index + 1}`).value = newSong.name;
+    });
+  }
+  async createPlaylist (form, playlistId) {
+    const elements = form.elements;
+    const name = elements.name.value;
+    const description = elements.description.value;
+    const image = await this.getImageInput(elements.image);
+    const songInputs = document.querySelectorAll(".song-input");
+    const songNames = [...songInputs]
+      .filter((song) => song.value)
+      .map((song) => {
+        return song.value;
+      });
+    const newPlaylist = {
+      name,
+      description,
+      thumbnail: image,
+      songs: songNames.map((song) => {
+        const id = this.getIdFromName(song);
+        if (id !== -1) {
+          return {
+            id: this.getIdFromName(song),
+          };
+        }
+      }),
+    };
+    if (playlistId) {
+      await this.HTTPManager.updatePlaylist(newPlaylist);
+    } else {
+      await this.HTTPManager.addNewPlaylist(newPlaylist);
+    }
+  }
+  async deletePlaylist (id) {
+    await this.HTTPManager.deletePlaylist(id);
+    window.location.href = "./index.html";
+  }
+  async getImageInput (input, reader = new FileReader()) {
+    if (input && input.files && input.files[0]) {
+      const image = await new Promise((resolve) => {
+        reader.onload = (e) => resolve(reader.result);
+        reader.readAsDataURL(input.files[0]);
+      });
+      return image;
+    }
+  }
+  getIdFromName (elementName) {
+    const element = this.songs.find((element) => element.name === elementName);
+    const id = element ? element.id : -1;
+    return id;
+  }
+}
+window.onload = () => {
+  new PlayListEditor(new HTTPManager()).load();
+};
+
+//playlist.js
+
+import { formatTime } from "./utils.js";
+import { SKIP_TIME, SHORTCUTS, SERVER_URL } from "./consts.js";
+import HTTPManager from "./http_manager.js";
+import Player from "./player.js";
+export default class PlayListManager {
+  constructor (player, HTTPManager) {
+    this.player = player;
+    this.HTTPManager = HTTPManager;
+    this.shortcuts = new Map();
+  }
+  async loadSongs (playlistId) {
+    const playlist = await this.HTTPManager.getPlaylistById(playlistId);
+    document.getElementById("playlist-img").src = `${SERVER_URL}/${playlist.thumbnail}`;
+    document.getElementById("playlist-title").textContent = playlist.name;
+    const songsToLoad = await Promise.all(
+      playlist.songs.map(async (song) => {
+        return await this.HTTPManager.fetchSong(song.id);
+      })
+    );
+    const songContainer = document.getElementById("song-container");
+    songContainer.innerHTML = "";
+    songsToLoad.forEach((song, index) => {
+      const songItem = this.buildSongItem(song, index);
+      songContainer.appendChild(songItem);
+    });
+    this.player.loadSongs(songsToLoad);
+  }
+  buildSongItem (song, index) {
+    const songItem = document.createElement("div");
+    songItem.classList.add("song-item", "flex-row");
+    songItem.addEventListener("click", () => {
+      this.playAudio(index);
+      this.setCurrentSongName();
+    });
+    const songIndex = document.createElement("span");
+    songIndex.textContent = index + 1;
+    songItem.appendChild(songIndex);
+    const songName = document.createElement("p");
+    songName.textContent = song.name;
+    songItem.appendChild(songName);
+    const songGenre = document.createElement("p");
+    songGenre.textContent = song.genre;
+    songItem.appendChild(songGenre);
+    const songArtist = document.createElement("p");
+    songArtist.textContent = song.artist;
+    songItem.appendChild(songArtist);
+    const heartIcon = document.createElement("i");
+    songItem.appendChild(heartIcon);
+    heartIcon.outerHTML = `<i class="${song.liked ? "fa" : "fa-regular"} fa-2x fa-heart"></i>`;
+
+    return songItem;
+  }
+  async playAudio (index) {
+    const playButton = document.getElementById("play");
+    await this.player.playAudio(index);
+    this.setCurrentSongName();
+    playButton.classList.add(this.player.audio.paused ? "fa-play" : "fa-pause");
+    playButton.classList.remove(this.player.audio.paused ? "fa-pause" : "fa-play");
+  }
+  playPreviousSong () {
+    this.player.playPreviousSong();
+    this.setCurrentSongName();
+  }
+  playNextSong () {
+    this.player.playNextSong();
+    this.setCurrentSongName();
+  }
+  setCurrentSongName () {
+    const nowPlayingElement = document.getElementById("now-playing");
+    nowPlayingElement.textContent = `On joue : ${this.player.currentSong.name}`;
+  }
+  timelineUpdate (currentTimeElement, timelineElement, durationElement) {
+    const position = (100 * this.player.audio.currentTime) / this.player.audio.duration;
+    timelineElement.value = position;
+    currentTimeElement.textContent = formatTime(this.player.audio.currentTime);
+    if (!isNaN(this.player.audio.duration)) {
+      durationElement.textContent = formatTime(this.player.audio.duration);
+    }
+  }
+  audioSeek (timelineElement) {
+    this.player.audioSeek(timelineElement.value);
+  }
+  muteToggle () {
+    const muteElement = document.getElementById("mute");
+    const isMuted = this.player.muteToggle();
+    muteElement.classList.add(isMuted ? "fa-volume-high" : "fa-volume-mute");
+    muteElement.classList.remove(isMuted ? "fa-volume-mute" : "fa-volume-high");
+  }
+  shuffleToggle (shuffleButton) {
+    const shuffle = this.player.shuffleToggle();
+    if (shuffle) shuffleButton.classList.add("control-btn-toggled");
+    else shuffleButton.classList.remove("control-btn-toggled");
+  }
+  scrubTime (delta) {
+    this.player.scrubTime(delta);
+  }
+  bindEvents () {
+    const currentTime = document.getElementById("timeline-current");
+    const timeline = document.getElementById("timeline");
+    const duration = document.getElementById("timeline-end");
+    this.player.audio.addEventListener("timeupdate", () => {
+      this.timelineUpdate(currentTime, timeline, duration);
+    });
+    timeline.addEventListener("input", () => {
+      this.audioSeek(timeline);
+    });
+    this.player.audio.addEventListener("ended", () => {
+      this.playNextSong();
+    });
+    const playButton = document.getElementById("play");
+    playButton.addEventListener("click", () => {
+      this.playAudio();
+    });
+    const muteElement = document.getElementById("mute");
+    muteElement.addEventListener("click", () => {
+      this.muteToggle();
+    });
+    const previous = document.getElementById("previous");
+    previous.addEventListener("click", () => {
+      this.playPreviousSong();
+    });
+    const next = document.getElementById("next");
+    next.addEventListener("click", () => {
+      this.playNextSong();
+    });
+    const shuffleButton = document.getElementById("shuffle");
+    shuffleButton.addEventListener("click", () => {
+      this.shuffleToggle(shuffleButton);
+    });
+    const edit = document.getElementById("playlist-edit");
+    edit.addEventListener("click", () => {
+      const urlParams = new URLSearchParams(document.location.search);
+      const playlistId = urlParams.get("id");
+      window.location.href = `./create_playlist.html?id=${playlistId}`;
+    });
+  }
+  bindShortcuts () {
+    this.shortcuts.set(SHORTCUTS.GO_FORWARD, () => this.scrubTime(SKIP_TIME));
+    this.shortcuts.set(SHORTCUTS.GO_BACK, () => this.scrubTime(-SKIP_TIME));
+    this.shortcuts.set(SHORTCUTS.PLAY_PAUSE, () => this.playAudio());
+    this.shortcuts.set(SHORTCUTS.NEXT_SONG, () => this.playNextSong());
+    this.shortcuts.set(SHORTCUTS.PREVIOUS_SONG, () => this.playPreviousSong());
+    this.shortcuts.set(SHORTCUTS.MUTE, () => this.muteToggle());
+    document.addEventListener("keydown", (event) => {
+      if (this.shortcuts.has(event.key)) {
+        this.shortcuts.get(event.key)();
+      }
+    });
+  }
+  load () {
+    const urlParams = new URLSearchParams(document.location.search);
+    const playlistId = urlParams.get("id");
+    this.bindEvents();
+    this.bindShortcuts();
+    this.loadSongs(playlistId);
+  }
+}
+window.onload = () => {
+  new PlayListManager(new Player(), new HTTPManager()).load();
+};
+
+
+//utils.js
+
+
+export function formatTime (seconds) {
+  let minutes = Math.floor(seconds / 60);
+  minutes = minutes >= 10 ? minutes : "0" + minutes;
+  seconds = Math.floor(seconds % 60);
+  seconds = seconds >= 10 ? seconds : "0" + seconds;
+  return minutes + ":" + seconds;
+}
+export function modulo (x, m) {
+  return ((x % m) + m) % m;
+}
+export function generateRandomID (len = 10) {
+  const hex = "0123456789";
+  let output = "";
+  for (let i = 0; i < len; ++i) {
+    output += hex.charAt(Math.floor(Math.random() * hex.length));
+  }
+  return output;
+}
+export function random (min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}

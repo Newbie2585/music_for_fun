@@ -1,0 +1,44 @@
+{
+    "songs" : [
+        {
+            "id": 1,
+            "name": "Coldplay - Magic",
+            "src": "Coldplay_Magic.wav"
+        },
+        {
+            "id": 2,
+            "name": "Bastille - Pompeii",
+            "src": "BastillePompeii.wav"
+        },
+        {
+            "id": 3,
+            "name": "CalumScott - Flaws",
+            "src": "CalumScott_Flaws.wav"
+        },
+        {
+            "id": 4,
+            "name": "Christopher Larkin - MantisLords",
+            "src": "ChristopherLarkin_MantisLords.wav"
+        },
+        {
+            "id": 5,
+            "name": "CleanBanditMabel - TickTock (feat.24k Goldn)",
+            "src": "CleanBanditMabel_TickTockfeat24kGoldn.wav"
+        },
+        {
+            "id": 6,
+            "name": "Flight Facilities Giselle - Crave You",
+            "src": "FlightFacilitiesGiselle_CraveYou.wav"
+        },
+        {
+            "id": 7,
+            "name": "Fitzand The Tantrums - Fool",
+            "src": "FitzandTheTantrums_Fool.wav"
+        },
+        {
+            "id": 8,
+            "name": "Fall Out Boy - JetPack Blues",
+            "src": "FallOutBoy_JetPackBlues.wav"
+        }
+    ]
+}
